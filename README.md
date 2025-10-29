@@ -1,10 +1,10 @@
 # ODIN integration using FMOD in Unity
 
-This example project shows how to use the [FMOD Plugin](https://www.fmod.com/unity) in combination with the [ODIN Voice Chat Plugin](https://www.4players.io/odin/) in Unity.
+This example project shows how to use the [FMOD Plugin](https://www.fmod.com/unity) in combination with the [ODIN Voice Unity SDK](https://docs.4players.io/voice/unity/), the full-service voice chat solution by [4Players](https://www.4players.io/company/about_us/).
 
 You can grab and move both the audio listener and remote peers with the left mouse button. This showcases the 3D positional audio behavior. To test the project on your own, you can create a build and start up the Editor.
 
-Alternatively you can use [the ODIN web app](https://odin.4players.de/app/) to test the project in combination with the Editor. Please note that you'll need to set up the `Auth Access Key` in the web app and connect to the `default` ODIN room.
+Alternatively you can use [the ODIN web app](https://4players.app) to test the project in combination with the editor. Please note that you'll need to set up the `Auth Access Key` in the web app and connect to the `default` ODIN room.
 
 The two essential scripts are the `FMODMicrophoneReader` and `FMODPlaybackComponent` scripts.
 
