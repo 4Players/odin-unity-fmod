@@ -1,6 +1,4 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using FMOD;
 using OdinNative.Core;
@@ -12,15 +10,6 @@ public class FMODPlaybackComponent : MonoBehaviour
 {
     private PlaybackStream _playbackMedia;
 
-    private PlaybackStream PlaybackMedia
-    {
-        get => _playbackMedia;
-        set
-        {
-            _playbackMedia = value;
-            _playbackMedia?.AudioReset();
-        }
-    }
 
     /// <summary>
     /// Retrieves the connected media stream based on the room name, peer id and media id.
@@ -35,43 +24,19 @@ public class FMODPlaybackComponent : MonoBehaviour
     ///     Room name for this playback. Change this value to change the PlaybackStream by Rooms from the Client.
     /// </summary>
     /// <remarks>Invalid values will cause errors.</remarks>
-    public string RoomName
-    {
-        get => _roomName;
-        set
-        {
-            _roomName = value;
-            PlaybackMedia = FindOdinMediaStream();
-        }
-    }
+    public string RoomName { get; set; }
 
     /// <summary>
     ///     Peer id for this playback. Change this value to change the PlaybackStream by RemotePeers in the Room.
     /// </summary>
     /// <remarks>Invalid values will cause errors.</remarks>
-    public ulong PeerId
-    {
-        get => _peerId;
-        set
-        {
-            _peerId = value;
-            PlaybackMedia = FindOdinMediaStream();
-        }
-    }
+    public ulong PeerId { get; set; }
 
     /// <summary>
     ///     Media id for this playback. Change this value to pick a PlaybackStream by media id from peers Medias.
     /// </summary>
     /// <remarks>Invalid values will cause errors.</remarks>
-    public long MediaStreamId
-    {
-        get => _mediaStreamId;
-        set
-        {
-            _mediaStreamId = value;
-            PlaybackMedia = FindOdinMediaStream();
-        }
-    }
+    public long MediaStreamId { get; set; }
 
     private Sound _playbackSound;
     /// <summary>
@@ -87,9 +52,6 @@ public class FMODPlaybackComponent : MonoBehaviour
     public Channel FMODPlaybackChannel => _playbackChannel;
 
     private CREATESOUNDEXINFO _createSoundInfo;
-    private ulong _peerId;
-    private long _mediaStreamId;
-    private string _roomName;
     private float[] _readBuffer = Array.Empty<float>();
 
     private SOUND_PCMREAD_CALLBACK _pcmReadCallback;
@@ -133,11 +95,12 @@ public class FMODPlaybackComponent : MonoBehaviour
             return RESULT.ERR_INVALID_PARAM;
         }
 
+        PlaybackStream playbackMedia = FindOdinMediaStream();
         // only read if we've joined any room and the connected playback media is valid.
-        if (OdinHandler.Instance.HasConnections && !PlaybackMedia.IsInvalid)
+        if (OdinHandler.Instance.HasConnections && null != playbackMedia &&  !playbackMedia.IsInvalid)
         {
             // read voice data from media stream into read buffer
-            uint odinReadResult = PlaybackMedia.AudioReadData(_readBuffer, requestedDataArrayLength);
+            uint odinReadResult = playbackMedia.AudioReadData(_readBuffer, requestedDataArrayLength);
             if (Utility.IsError(odinReadResult))
             {
                 Debug.LogWarning(
@@ -147,6 +110,7 @@ public class FMODPlaybackComponent : MonoBehaviour
             {
                 // copy read ODIN data into the FMOD stream
                 Marshal.Copy(_readBuffer, 0, data, requestedDataArrayLength);
+                return RESULT.ERR_DSP_SILENCE;
             }
         }
         return RESULT.OK;
