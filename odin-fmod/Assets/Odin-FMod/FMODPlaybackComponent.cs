@@ -110,7 +110,7 @@ public class FMODPlaybackComponent : MonoBehaviour
             {
                 // copy read ODIN data into the FMOD stream
                 Marshal.Copy(_readBuffer, 0, data, requestedDataArrayLength);
-                return RESULT.ERR_DSP_SILENCE;
+                return RESULT.OK;
             }
         }
         return RESULT.OK;
