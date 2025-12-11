@@ -1,0 +1,19 @@
+﻿<Solution>
+  <Project Path="Unity.Multiplayer.Center.Editor.csproj" />
+  <Project Path="UnityEngine.UI.csproj" />
+  <Project Path="UnityEditor.TestRunner.csproj" />
+  <Project Path="UnityEngine.TestRunner.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="Unity.TextMeshPro.Editor.csproj" />
+  <Project Path="FMODUnityEditor.csproj" />
+  <Project Path="Unity.InternalAPIEngineBridge.004.csproj" />
+  <Project Path="odinsdk.csproj" />
+  <Project Path="OdinUnity.csproj" />
+  <Project Path="UnityEditor.UI.csproj" />
+  <Project Path="Unity.TextMeshPro.csproj" />
+  <Project Path="FMODUnityResonanceEditor.csproj" />
+  <Project Path="Unity.Multiplayer.Center.Common.csproj" />
+  <Project Path="FMODUnity.csproj" />
+  <Project Path="FMODUnityHaptics.csproj" />
+  <Project Path="FMODUnityResonance.csproj" />
+</Solution>

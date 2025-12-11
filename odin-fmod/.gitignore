@@ -84,3 +84,4 @@ ProjectSettings/RiderScriptEditorPersistedState.asset
 # Log files can be ignored.
 fmod_editor.log
 
+/.utmp/
