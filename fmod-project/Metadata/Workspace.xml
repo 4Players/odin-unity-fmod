@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<objects serializationModel="Studio.02.02.00">
+<objects serializationModel="Studio.02.03.00">
 	<object class="Workspace" id="{c0c8a4b4-acac-40ac-875a-4cb1b77875bc}">
 		<relationship name="masterEventFolder">
-			<destination>{00297a8c-2b36-487c-9514-6cdac7cb040b}</destination>
+			<destination>{3fc44cad-3812-49c0-a0f3-3fef6ac354cb}</destination>
 		</relationship>
 		<relationship name="masterTagFolder">
-			<destination>{e4d286c2-d1d4-4e48-956a-d4eb3cf5e218}</destination>
+			<destination>{802d7737-58ec-4858-922d-2fed23b1f946}</destination>
 		</relationship>
 		<relationship name="masterEffectPresetFolder">
-			<destination>{8d0f93d6-cd16-4a77-9471-7ebcedc369cb}</destination>
+			<destination>{445e5fa8-6d3d-4d70-b03c-0e7880df3960}</destination>
 		</relationship>
 		<relationship name="masterParameterPresetFolder">
-			<destination>{6e059802-19cd-4779-a75e-8736a9b4be2b}</destination>
+			<destination>{23eabd28-328b-464f-b776-303eb26582b2}</destination>
 		</relationship>
 		<relationship name="masterBankFolder">
-			<destination>{993dfad9-0af6-47ac-9913-d27a0a30f431}</destination>
+			<destination>{e7bddd78-f2fa-4fd7-9717-6ca81a4c1f80}</destination>
 		</relationship>
 		<relationship name="masterSandboxFolder">
-			<destination>{c9fea2c7-a364-4406-b314-ec0886df3f6b}</destination>
+			<destination>{01c9f6ec-dc62-4b7c-b32c-e3798e1b7e81}</destination>
 		</relationship>
 		<relationship name="masterAssetFolder">
-			<destination>{80aed86e-663a-4998-8bc0-6455990af09a}</destination>
+			<destination>{41f975e9-864f-42fa-b332-ed17fe66ab69}</destination>
 		</relationship>
 		<relationship name="mixer">
-			<destination>{4a546781-a0ad-4a68-9e6a-75930d4fe45a}</destination>
+			<destination>{63a8e250-e395-4303-89d3-a740fbe228d2}</destination>
 		</relationship>
 		<relationship name="profilerSessionFolder">
-			<destination>{fec23559-5546-4dd3-9e2a-9db48cf94645}</destination>
+			<destination>{07c20ab1-3bd3-4c86-b212-3ca8a85e3a09}</destination>
 		</relationship>
 		<relationship name="platforms">
 			<destination>{e1b6bf56-b85d-41de-a6be-91bd9fec94bd}</destination>
