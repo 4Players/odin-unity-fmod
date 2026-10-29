@@ -29,6 +29,17 @@ namespace OdinNative.Core.Platform
     /// </summary>
     internal static class PlatformSpecific
     {
+        /// <summary>
+        /// Pin the module so FreeLibrary/dlclose never unmaps it (ReloadLibrary)
+        /// </summary>
+        /// <remarks>Only read when the native library is loaded, so it must be set before the first load</remarks>
+        internal static bool PinModule =
+        #if UNITY_5_3_OR_NEWER
+            true;
+        #else
+            false;
+        #endif
+
         private const string PackageName = "io.fourplayers.odin";
         private const string PackageVendor = "4Players";
         private const string PackageShortName = "ODIN";
@@ -53,6 +64,8 @@ namespace OdinNative.Core.Platform
             public static extern IntPtr GetProcAddress(IntPtr hModule, [MarshalAs(UnmanagedType.LPStr)] string procedureName);
             [DllImport("kernel32.dll", SetLastError = true, CallingConvention = CallingConvention.Winapi)]
             public static extern bool FreeLibrary(IntPtr hModule);
+            [DllImport("kernel32.dll", SetLastError = true, CallingConvention = CallingConvention.Winapi, EntryPoint = "GetModuleHandleExW")]
+            public static extern bool GetModuleHandleEx(uint dwFlags, IntPtr lpModuleName, out IntPtr phModule);
             [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Winapi)]
             public static extern int GetModuleFileName(IntPtr hModule, [Out] byte[] lpFilename, [In][MarshalAs(UnmanagedType.U4)] int nSize);
         }
@@ -122,13 +135,20 @@ namespace OdinNative.Core.Platform
                     handle = NativeWindowsMethods.LoadLibrary(name);
                     if (handle == IntPtr.Zero)
                         goto default;
+                    if (PinModule)
+                    {
+                        // Pin the module so FreeLibrary never unmaps it (ReloadLibrary), like RTLD_NODELETE on Android.
+                        // odin_shutdown can return while native runtime threads are still tearing down rooms; once the
+                        // image is unmapped they crash with an access violation.
+                        NativeWindowsMethods.GetModuleHandleEx(0x1 /* GET_MODULE_HANDLE_EX_FLAG_PIN */ | 0x4 /* GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS */, handle, out _);
+                    }
                     location = GetLocationWindows(handle) ?? name;
                     return true;
                 case SupportedPlatform.Android:
                     // RTLD_NODELETE: keep the library mapped across dlclose/dlopen cycles (ReloadLibrary).
                     // The native runtime allocates one pthread TLS key per thread_local and never frees them;
                     // bionic caps a process at 128 keys, so a real unload/reload leaks ~20 keys per cycle and
-                    // eventually aborts with "fatal runtime error: out of TLS keys".
+                    // eventually aborts with "fatal runtime error: out of TLS keys". Independent of PinModule (always PIN)
                     handle = NativeUnixMehods.dlopen(name, 2 /* RTLD_NOW */ | 0x1000 /* RTLD_NODELETE */);
                     if (handle == IntPtr.Zero)
                         goto default;
@@ -137,7 +157,7 @@ namespace OdinNative.Core.Platform
                 case SupportedPlatform.iOS:
                 case SupportedPlatform.Linux:
                 case SupportedPlatform.MacOSX:
-                    handle = NativeUnixMehods.dlopen(name, 2 /* RTLD_NOW */);
+                    handle = NativeUnixMehods.dlopen(name, PinModule ? 2 /* RTLD_NOW */ | (platform == SupportedPlatform.Linux ? 0x1000 /* RTLD_NODELETE Linux */ : 0x80 /* RTLD_NODELETE macOS/iOS */) : 2 /* RTLD_NOW */);
                     if (handle == IntPtr.Zero)
                         goto default;
                     location = name;
