@@ -16,7 +16,7 @@ public class FMODPlaybackComponent : MonoBehaviour
     /// Retrieves the connected media stream based on the room name, peer id and media id.
     /// </summary>
     /// <returns>Media Stream as Playbackstream, if room name, peer id and media id point to a valid stream, or null otherwise.</returns>
-    private PlaybackStream FindOdinMediaStream() => OdinHandler.Instance.Rooms[RoomName]?
+    private PlaybackStream FindOdinMediaStream() => OdinHandler.Instance?.Rooms?[RoomName]?
         .RemotePeers[PeerId]?
         .Medias[MediaStreamId] as PlaybackStream;
 
@@ -144,7 +144,7 @@ public class FMODPlaybackComponent : MonoBehaviour
 
         PlaybackStream playbackMedia = playbackComponent.FindOdinMediaStream();
         // only read if we've joined any room and the connected playback media is valid.
-        if (null != playbackMedia && OdinHandler.Instance.HasConnections && !playbackMedia.IsInvalid)
+        if (null != playbackMedia && OdinHandler.Instance?.HasConnections == true && !playbackMedia.IsInvalid)
         {
             // read voice data from media stream into read buffer
             uint odinReadResult = playbackMedia.AudioReadData(playbackComponent._readBuffer, requestedDataArrayLength);
