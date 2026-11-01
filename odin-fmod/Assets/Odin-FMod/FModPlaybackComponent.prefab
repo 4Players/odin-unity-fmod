@@ -140,6 +140,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f1ab314dad501184da029e92aadaf7b1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  minDistance: 1
+  maxDistance: 20
+  rolloff: 2
 --- !u!114 &8287337352338981694
 MonoBehaviour:
   m_ObjectHideFlags: 0

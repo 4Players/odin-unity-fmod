@@ -97,11 +97,20 @@ public class FMODPlaybackComponent : MonoBehaviour
             _createSoundInfo.decodebuffersize = (uint)(playBackRate * decodeBufferMilliseconds / 1000);
         Debug.Log($"{nameof(FMODPlaybackComponent)} decode buffer: {(decodeBufferMilliseconds > 0 ? decodeBufferMilliseconds + " ms (" + _createSoundInfo.decodebuffersize + " samples)" : "FMOD default")}");
 
-        FMODUnity.RuntimeManager.CoreSystem.createStream("", MODE.OPENUSER | MODE.LOOP_NORMAL,
-            ref _createSoundInfo, out _playbackSound);
+        // the 3D mode has to be set when creating the sound, switching a playing stream to 3D is unreliable
+        bool spatialize = TryGetComponent(out FMODPlayback3DPosition spatializer);
+        MODE mode = MODE.OPENUSER | MODE.LOOP_NORMAL | (spatialize ? MODE._3D | spatializer.RolloffMode : MODE._2D);
+        FMODUnity.RuntimeManager.CoreSystem.createStream("", mode, ref _createSoundInfo, out _playbackSound);
         FMODUnity.RuntimeManager.CoreSystem.getMasterChannelGroup(out ChannelGroup masterChannelGroup);
-        FMODUnity.RuntimeManager.CoreSystem.playSound(_playbackSound, masterChannelGroup, false,
+        // start paused so the first mixed block is already panned to the right position
+        FMODUnity.RuntimeManager.CoreSystem.playSound(_playbackSound, masterChannelGroup, true,
             out _playbackChannel);
+        if (spatialize)
+        {
+            ATTRIBUTES_3D attributes3D = FMODUnity.RuntimeUtils.To3DAttributes(transform);
+            _playbackChannel.set3DAttributes(ref attributes3D.position, ref attributes3D.velocity);
+        }
+        _playbackChannel.setPaused(false);
 
         lock (_soundToPlaybackMap)
         {

@@ -6,7 +6,7 @@ You can grab and move both the audio listener and remote peers with the left mou
 
 Alternatively you can use [the ODIN web app](https://4players.app) to test the project in combination with the editor. Please note that you'll need to set up the `Auth Access Key` in the web app and connect to the `default` ODIN room.
 
-The two essential scripts are the `FMODMicrophoneReader` and `FMODPlaybackComponent` scripts.
+The two essential scripts are the `FMODMicrophoneReader` and `FMODPlaybackComponent` scripts. For 3D positional audio, add `FMODPlayback3DPosition` to the playback objects and `FMODCoreListener` to the listener.
 
 ## Disabling Unity Audio Engine
 
@@ -29,3 +29,26 @@ This script replaces ODIN's `PlaybackComponent`. After setting room name, peer i
 Take a look at the `OdinAutoJoin` script to see a sample implementation of how to handle playback components.
 
 **Important:** Because the `OdinHandler` currently only supports automatically setting up playback using the Unity Audio system, you'll need to switch from `Playback auto creation` to `Manual positional audio` on the `OdinHandler` script. Instead take a look at the `OdinAutoJoin` script to see how to manually handle playback components.
+
+The `Decode Buffer Milliseconds` setting controls the size of FMOD's decode buffer. FMOD's default is 400 ms, the sample uses 50 ms. Values of 40 to 50 ms play without dropouts, while 20 ms produces crackles. You can override the value in the inspector or globally in builds with the `-decodebuffer <ms>` command line argument.
+
+## 3D Positional Audio
+
+### FMODPlayback3DPosition
+
+Add this script next to an `FMODPlaybackComponent` to spatialize the voice. If present, the playback component creates its FMOD stream in 3D mode. The script then updates the channel's position from the GameObject's transform every frame.
+
+Settings:
+
+- `Min Distance`: the voice plays at full volume up to this distance.
+- `Max Distance`: the voice is silent beyond this distance (linear rolloffs), or stops getting quieter (inverse rolloff).
+- `Rolloff`: how the volume falls off between min and max distance.
+  - `Inverse`: realistic falloff that never reaches silence.
+  - `Linear`: fades evenly to silence from min to max distance.
+  - `LinearSquare` (default): fades to silence at the max distance, dropping faster the closer you are to the speaker.
+
+The rolloff setting is read when the playback stream is created, changing this during runtime will not change the playback behaviour.
+
+### FMODCoreListener
+
+Add this script to the same GameObject as your `StudioListener` script, usually the camera or player object. It copies the position and orientation into the FMOD Core listener every frame.

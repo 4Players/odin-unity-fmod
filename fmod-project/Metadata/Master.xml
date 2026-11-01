@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <objects serializationModel="Studio.02.03.00">
 	<object class="MixerMaster" id="{687719c2-be33-47f5-b631-db62d2f1dd08}">
+		<property name="overridingInputFormat">
+			<value>1</value>
+		</property>
 		<relationship name="effectChain">
 			<destination>{2be3987f-a876-4f9d-89f9-22c5f776377d}</destination>
 		</relationship>
