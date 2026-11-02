@@ -59,10 +59,17 @@ namespace Odin_FMod
         public bool Muted { get; private set; }
 
         /// <summary>
-        /// Frames per chunk pushed to ODIN (20 ms) and the matching interleaved sample buffer.
+        /// Number of channels sent to ODIN. ODIN encodes mono or stereo, so devices with more channels are downmixed to mono.
+        /// </summary>
+        private int _odinChannels;
+
+        /// <summary>
+        /// Frames per chunk pushed to ODIN (20 ms), the matching interleaved sample buffer as recorded and the buffer
+        /// sent to ODIN, which is the same array unless the chunk is downmixed.
         /// </summary>
         private uint _chunkFrames;
         private float[] _chunk;
+        private float[] _odinChunk;
 
 
         private void Start()
@@ -77,14 +84,17 @@ namespace Odin_FMod
             // retrieve microphone info like sampling rate and number of channels
             FMODUnity.RuntimeManager.CoreSystem.getRecordDriverInfo(_currentDeviceId, out string deviceName, 256, out _, out _nativeRate,
                 out _,out _nativeChannels, out _);
-            if (_nativeChannels < 1 || _nativeChannels > 2)
+            if (_nativeChannels < 1)
             {
-                Debug.LogError($"{nameof(FMODMicrophoneReader)} device \"{deviceName}\" has {_nativeChannels} channels, ODIN encodes mono or stereo");
+                Debug.LogError($"{nameof(FMODMicrophoneReader)} device \"{deviceName}\" reports {_nativeChannels} channels");
                 return;
             }
+            _odinChannels = _nativeChannels > 2 ? 1 : _nativeChannels;
             _chunkFrames = (uint)(_nativeRate / 50); // 20 ms
             _chunk = new float[_chunkFrames * _nativeChannels];
-            Debug.Log($"{nameof(FMODMicrophoneReader)} recording \"{deviceName}\": {_nativeRate} Hz, {_nativeChannels} channel(s), {_chunkFrames} frames per chunk");
+            _odinChunk = _odinChannels == _nativeChannels ? _chunk : new float[_chunkFrames * _odinChannels];
+            Debug.Log($"{nameof(FMODMicrophoneReader)} recording \"{deviceName}\": {_nativeRate} Hz, {_nativeChannels} channel(s)" +
+                      $"{(_odinChannels != _nativeChannels ? " downmixed to mono" : "")}, {_chunkFrames} frames per chunk");
             // Setup recording sound that will contain microphone data
             _recordingSoundInfo.cbsize = Marshal.SizeOf(typeof(CREATESOUNDEXINFO));
             _recordingSoundInfo.numchannels = _nativeChannels;
@@ -160,6 +170,9 @@ namespace Odin_FMod
                     Marshal.Copy(ptr2, _chunk, samples1, (int)(len2 / sizeof(float)));
                 _recordingSound.unlock(ptr1, ptr2, len1, len2);
 
+                if (_odinChunk != _chunk)
+                    DownmixToMono(_chunk, _odinChunk, _nativeChannels);
+
                 foreach (var room in OdinHandler.Instance.Rooms)
                 {
                     ValidateMicrophoneStream(room);
@@ -169,12 +182,26 @@ namespace Odin_FMod
                     {
                         if (room.MicrophoneMedia.IsMuted != Muted)
                             room.MicrophoneMedia.MuteStream(Muted);
-                        room.MicrophoneMedia.AudioPushData(_chunk, _chunk.Length);
+                        room.MicrophoneMedia.AudioPushData(_odinChunk, _odinChunk.Length);
                     }
                 }
 
                 _currentReadPosition = (_currentReadPosition + _chunkFrames) % _recordingSoundLength;
                 available -= _chunkFrames;
+            }
+        }
+
+        /// <summary>
+        /// Averages the channels of each interleaved frame in <paramref name="input"/> into one mono sample.
+        /// </summary>
+        private static void DownmixToMono(float[] input, float[] output, int channels)
+        {
+            for (int frame = 0; frame < output.Length; frame++)
+            {
+                float sum = 0f;
+                for (int channel = 0; channel < channels; channel++)
+                    sum += input[frame * channels + channel];
+                output[frame] = sum / channels;
             }
         }
 
@@ -185,13 +212,13 @@ namespace Odin_FMod
         private void ValidateMicrophoneStream(Room room)
         {
             bool isValidStream = null != room.MicrophoneMedia &&
-                                 _nativeChannels == (int)room.MicrophoneMedia.MediaConfig.Channels &&
+                                 _odinChannels == (int)room.MicrophoneMedia.MediaConfig.Channels &&
                                  _nativeRate == (int)room.MicrophoneMedia.MediaConfig.SampleRate;
             if (!isValidStream)
             {
                 room.MicrophoneMedia?.Dispose();
                 room.CreateMicrophoneMedia(new OdinMediaConfig((MediaSampleRate)_nativeRate,
-                    (MediaChannels)_nativeChannels));
+                    (MediaChannels)_odinChannels));
             }
         }
     }
