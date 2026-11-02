@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 using FMOD;
 using OdinNative.Core;
 using OdinNative.Odin.Media;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 public class FMODPlaybackComponent : MonoBehaviour
 {
@@ -65,6 +67,18 @@ public class FMODPlaybackComponent : MonoBehaviour
 
     private SOUND_PCMREAD_CALLBACK _pcmReadCallback;
 
+    /// <summary>
+    /// Serializes reads from the ODIN media stream between FMOD's stream thread and the main thread drain.
+    /// </summary>
+    private readonly object _readLock = new();
+
+    /// <summary>
+    /// <see cref="Stopwatch"/> timestamp of the last read from the ODIN media stream.
+    /// </summary>
+    private long _lastReadTimestamp;
+
+    private double _stallThresholdSeconds;
+
     private static readonly Dictionary<IntPtr, FMODPlaybackComponent> _soundToPlaybackMap = new();
 
     // Start is called before the first frame update
@@ -95,6 +109,9 @@ public class FMODPlaybackComponent : MonoBehaviour
         int decodeBufferMilliseconds = CommandLineInt("-decodebuffer", DecodeBufferMilliseconds);
         if (decodeBufferMilliseconds > 0)
             _createSoundInfo.decodebuffersize = (uint)(playBackRate * decodeBufferMilliseconds / 1000);
+        // FMOD refills the decode buffer roughly once per buffer length, so only treat a much longer gap as a stall
+        double decodeBufferSeconds = (decodeBufferMilliseconds > 0 ? decodeBufferMilliseconds : 400) / 1000.0;
+        _stallThresholdSeconds = Math.Max(0.2, 3 * decodeBufferSeconds);
         Debug.Log($"{nameof(FMODPlaybackComponent)} decode buffer: {(decodeBufferMilliseconds > 0 ? decodeBufferMilliseconds + " ms (" + _createSoundInfo.decodebuffersize + " samples)" : "FMOD default")}");
 
         // the 3D mode has to be set when creating the sound, switching a playing stream to 3D is unreliable
@@ -105,6 +122,8 @@ public class FMODPlaybackComponent : MonoBehaviour
         // start paused so the first mixed block is already panned to the right position
         FMODUnity.RuntimeManager.CoreSystem.playSound(_playbackSound, masterChannelGroup, true,
             out _playbackChannel);
+        // highest priority, so FMOD virtualizes other channels first when it runs out of real channels
+        _playbackChannel.setPriority(0);
         if (spatialize)
         {
             ATTRIBUTES_3D attributes3D = FMODUnity.RuntimeUtils.To3DAttributes(transform);
@@ -112,10 +131,63 @@ public class FMODPlaybackComponent : MonoBehaviour
         }
         _playbackChannel.setPaused(false);
 
+        _lastReadTimestamp = Stopwatch.GetTimestamp();
         lock (_soundToPlaybackMap)
         {
             _soundToPlaybackMap.Add(_playbackSound.handle, this);
         }
+    }
+
+    /// <summary>
+    /// FMOD only calls the read callback while the channel is mixed. A virtual or paused channel, a suspended mixer
+    /// (e.g. app in background) or a lost output device stop the callbacks, and ODIN keeps buffering voice data that
+    /// nobody reads. Drain and discard the data for the stalled time instead.
+    /// </summary>
+    private void Update()
+    {
+        double stalledSeconds = (double)(Stopwatch.GetTimestamp() - Interlocked.Read(ref _lastReadTimestamp)) / Stopwatch.Frequency;
+        if (stalledSeconds < _stallThresholdSeconds)
+            return;
+
+        // cap at one second, so a long suspension doesn't allocate a huge buffer
+        int length = (int)(Math.Min(stalledSeconds, 1.0)
+            * (int)  OdinHandler.Config.RemoteSampleRate) * (int)OdinHandler.Config.RemoteChannels;
+        lock (_readLock)
+        {
+            ReadFromOdinLocked(length);
+        }
+    }
+
+    /// <summary>
+    /// Reads <paramref name="length"/> samples from the connected ODIN media stream into <see cref="_readBuffer"/>.
+    /// Must be called while holding <see cref="_readLock"/>.
+    /// </summary>
+    /// <returns>True if the read buffer holds valid voice data.</returns>
+    private bool ReadFromOdinLocked(int length)
+    {
+        Interlocked.Exchange(ref _lastReadTimestamp, Stopwatch.GetTimestamp());
+
+        // resize read buffer if necessary
+        if (_readBuffer.Length < length)
+        {
+            _readBuffer = new float[length];
+        }
+
+        PlaybackStream playbackMedia = FindOdinMediaStream();
+        // only read if we've joined any room and the connected playback media is valid.
+        if (null == playbackMedia || OdinHandler.Instance?.HasConnections != true || playbackMedia.IsInvalid)
+        {
+            return false;
+        }
+
+        // read voice data from media stream into read buffer
+        uint odinReadResult = playbackMedia.AudioReadData(_readBuffer, length);
+        if (Utility.IsError(odinReadResult))
+        {
+            Debug.LogWarning($"{nameof(FMODPlaybackComponent)} AudioReadData failed with error code:{odinReadResult}");
+            return false;
+        }
+        return true;
     }
 
     [AOT.MonoPInvokeCallback(typeof(SOUND_PCMREAD_CALLBACK))]
@@ -144,24 +216,9 @@ public class FMODPlaybackComponent : MonoBehaviour
         // retrieve array length of data that is requested
         int requestedDataArrayLength = (int)dataLength / sizeof(float);
 
-        // resize read buffer if necessary
-        if (playbackComponent._readBuffer.Length < requestedDataArrayLength)
+        lock (playbackComponent._readLock)
         {
-            playbackComponent._readBuffer = new float[requestedDataArrayLength];
-        }
-
-
-        PlaybackStream playbackMedia = playbackComponent.FindOdinMediaStream();
-        // only read if we've joined any room and the connected playback media is valid.
-        if (null != playbackMedia && OdinHandler.Instance?.HasConnections == true && !playbackMedia.IsInvalid)
-        {
-            // read voice data from media stream into read buffer
-            uint odinReadResult = playbackMedia.AudioReadData(playbackComponent._readBuffer, requestedDataArrayLength);
-            if (Utility.IsError(odinReadResult))
-            {
-                Debug.LogWarning($"{nameof(FMODPlaybackComponent)} AudioReadData failed with error code:{odinReadResult}");
-            }
-            else
+            if (playbackComponent.ReadFromOdinLocked(requestedDataArrayLength))
             {
                 Marshal.Copy(playbackComponent._readBuffer, 0, data, requestedDataArrayLength);
             }
