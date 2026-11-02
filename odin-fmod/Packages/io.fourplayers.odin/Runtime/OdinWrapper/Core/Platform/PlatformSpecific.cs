@@ -333,6 +333,7 @@ namespace OdinNative.Core.Platform
                         string.Format("{0}/{1}/{2}", LibraryCache, "Plugins/macos/universal", AppleLibName) // PackageCache
 #if UNITY_64
                         ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins/macos", AppleLibName), string.Format("{0}/{1}", "Plugins/macos", AppleLibName) // Standalone appbundle
+                        ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins", AppleLibName), string.Format("{0}/{1}", "Plugins", AppleLibName) // Standalone appbundle (build layout)
 #endif
                     };
                     break;
@@ -382,6 +383,8 @@ namespace OdinNative.Core.Platform
 #if UNITY_64
                             ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins/linux", LinuxLibName)
                             ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "linux/x86_64", LinuxLibName), string.Format("{0}/{1}/{2}", "Plugins", "linux/x86_64", LinuxLibName) // Standalone
+                            ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins", LinuxLibName)
+                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "x86_64", LinuxLibName), string.Format("{0}/{1}/{2}", "Plugins", "x86_64", LinuxLibName) // Standalone (build layout)
 #endif
                         }
                         : new string[] { LinuxLibName,
@@ -393,6 +396,8 @@ namespace OdinNative.Core.Platform
 #if UNITY_STANDALONE_LINUX || UNITY_EDITOR_LINUX
                             ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins/linux", LinuxLibName)
                             ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "linux/x86", LinuxLibName), string.Format("{0}/{1}/{2}", "Plugins", "linux/x86", LinuxLibName)  // Standalone
+                            ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins", LinuxLibName)
+                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "x86", LinuxLibName), string.Format("{0}/{1}/{2}", "Plugins", "x86", LinuxLibName)  // Standalone (build layout)
 #endif
                         };
                     break;
@@ -408,6 +413,9 @@ namespace OdinNative.Core.Platform
                             string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins/windows", WindowsLibName),
                             string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "windows/x86_64", WindowsLibName),
                             string.Format("{0}/{1}/{2}", "Plugins", "windows/x86_64", WindowsLibName),  // Standalone
+                            string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins", WindowsLibName),
+                            string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "x86_64", WindowsLibName),
+                            string.Format("{0}/{1}/{2}", "Plugins", "x86_64", WindowsLibName),  // Standalone (build layout)
 #endif
 #if ENABLE_VR
                             string.Format("{0}/{1}/{2}", PackagePath, "windows/aarch64", WindowsLibName), // PkgManager
@@ -426,6 +434,8 @@ namespace OdinNative.Core.Platform
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
                             ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins/windows", WindowsLibName)
                             ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "windows/x86", WindowsLibName), string.Format("{0}/{1}/{2}", "Plugins", "windows/x86", WindowsLibName)  // Standalone
+                            ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins", WindowsLibName)
+                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "x86", WindowsLibName), string.Format("{0}/{1}/{2}", "Plugins", "x86", WindowsLibName)  // Standalone (build layout)
 #endif
                         };
                     break;
