@@ -29,6 +29,17 @@ namespace OdinNative.Core.Platform
     /// </summary>
     internal static class PlatformSpecific
     {
+        /// <summary>
+        /// Pin the module so FreeLibrary/dlclose never unmaps it (ReloadLibrary)
+        /// </summary>
+        /// <remarks>Only read when the native library is loaded, so it must be set before the first load</remarks>
+        internal static bool PinModule =
+        #if UNITY_5_3_OR_NEWER
+            true;
+        #else
+            false;
+        #endif
+
         private const string PackageName = "io.fourplayers.odin";
         private const string PackageVendor = "4Players";
         private const string PackageShortName = "ODIN";
@@ -53,6 +64,8 @@ namespace OdinNative.Core.Platform
             public static extern IntPtr GetProcAddress(IntPtr hModule, [MarshalAs(UnmanagedType.LPStr)] string procedureName);
             [DllImport("kernel32.dll", SetLastError = true, CallingConvention = CallingConvention.Winapi)]
             public static extern bool FreeLibrary(IntPtr hModule);
+            [DllImport("kernel32.dll", SetLastError = true, CallingConvention = CallingConvention.Winapi, EntryPoint = "GetModuleHandleExW")]
+            public static extern bool GetModuleHandleEx(uint dwFlags, IntPtr lpModuleName, out IntPtr phModule);
             [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Winapi)]
             public static extern int GetModuleFileName(IntPtr hModule, [Out] byte[] lpFilename, [In][MarshalAs(UnmanagedType.U4)] int nSize);
         }
@@ -96,6 +109,9 @@ namespace OdinNative.Core.Platform
             {
                 if (LoadDynamicLibrary(platform, possibleName, out handle, out location))
                     return;
+#if DEBUG
+                System.Diagnostics.Debug.WriteLine(new Exception(possibleName, GetLastWindowsError()));
+#endif
             }
             string message = string.Join(", ", possibleNames);
             switch (platform)
@@ -119,13 +135,29 @@ namespace OdinNative.Core.Platform
                     handle = NativeWindowsMethods.LoadLibrary(name);
                     if (handle == IntPtr.Zero)
                         goto default;
+                    if (PinModule)
+                    {
+                        // Pin the module so FreeLibrary never unmaps it (ReloadLibrary), like RTLD_NODELETE on Android.
+                        // odin_shutdown can return while native runtime threads are still tearing down rooms; once the
+                        // image is unmapped they crash with an access violation.
+                        NativeWindowsMethods.GetModuleHandleEx(0x1 /* GET_MODULE_HANDLE_EX_FLAG_PIN */ | 0x4 /* GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS */, handle, out _);
+                    }
                     location = GetLocationWindows(handle) ?? name;
                     return true;
                 case SupportedPlatform.Android:
+                    // RTLD_NODELETE: keep the library mapped across dlclose/dlopen cycles (ReloadLibrary).
+                    // The native runtime allocates one pthread TLS key per thread_local and never frees them;
+                    // bionic caps a process at 128 keys, so a real unload/reload leaks ~20 keys per cycle and
+                    // eventually aborts with "fatal runtime error: out of TLS keys". Independent of PinModule (always PIN)
+                    handle = NativeUnixMehods.dlopen(name, 2 /* RTLD_NOW */ | 0x1000 /* RTLD_NODELETE */);
+                    if (handle == IntPtr.Zero)
+                        goto default;
+                    location = name;
+                    return true;
                 case SupportedPlatform.iOS:
                 case SupportedPlatform.Linux:
                 case SupportedPlatform.MacOSX:
-                    handle = NativeUnixMehods.dlopen(name, 2 /* RTLD_NOW */);
+                    handle = NativeUnixMehods.dlopen(name, PinModule ? 2 /* RTLD_NOW */ | (platform == SupportedPlatform.Linux ? 0x1000 /* RTLD_NODELETE Linux */ : 0x80 /* RTLD_NODELETE macOS/iOS */) : 2 /* RTLD_NOW */);
                     if (handle == IntPtr.Zero)
                         goto default;
                     location = name;
@@ -300,7 +332,8 @@ namespace OdinNative.Core.Platform
                         string.Format("{0}/{1}/{2}", AssetStorePath, "macos/universal", AppleLibName), // Asset Store
                         string.Format("{0}/{1}/{2}", LibraryCache, "Plugins/macos/universal", AppleLibName) // PackageCache
 #if UNITY_64
-                        ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins", AppleLibName), string.Format("{0}/{1}", "Plugins", AppleLibName) // Standalone appbundle
+                        ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins/macos", AppleLibName), string.Format("{0}/{1}", "Plugins/macos", AppleLibName) // Standalone appbundle
+                        ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins", AppleLibName), string.Format("{0}/{1}", "Plugins", AppleLibName) // Standalone appbundle (build layout)
 #endif
                     };
                     break;
@@ -348,8 +381,10 @@ namespace OdinNative.Core.Platform
                             string.Format("{0}/{1}/{2}", AssetStorePath, "linux/x86_64", LinuxLibName), // Asset Store
                             string.Format("{0}/{1}/{2}", LibraryCache, "Plugins/linux/x86_64", LinuxLibName) // PackageCache
 #if UNITY_64
+                            ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins/linux", LinuxLibName)
+                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "linux/x86_64", LinuxLibName), string.Format("{0}/{1}/{2}", "Plugins", "linux/x86_64", LinuxLibName) // Standalone
                             ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins", LinuxLibName)
-                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "x86_64", LinuxLibName), string.Format("{0}/{1}/{2}", "Plugins", "x86_64", LinuxLibName) // Standalone
+                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "x86_64", LinuxLibName), string.Format("{0}/{1}/{2}", "Plugins", "x86_64", LinuxLibName) // Standalone (build layout)
 #endif
                         }
                         : new string[] { LinuxLibName,
@@ -359,8 +394,10 @@ namespace OdinNative.Core.Platform
                             string.Format("{0}/{1}/{2}", AssetStorePath, "linux/x86", LinuxLibName), // Asset Store
                             string.Format("{0}/{1}/{2}", LibraryCache, "Plugins/linux/x86", LinuxLibName) // PackageCache
 #if UNITY_STANDALONE_LINUX || UNITY_EDITOR_LINUX
+                            ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins/linux", LinuxLibName)
+                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "linux/x86", LinuxLibName), string.Format("{0}/{1}/{2}", "Plugins", "linux/x86", LinuxLibName)  // Standalone
                             ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins", LinuxLibName)
-                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "x86", LinuxLibName), string.Format("{0}/{1}/{2}", "Plugins", "x86", LinuxLibName)  // Standalone
+                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "x86", LinuxLibName), string.Format("{0}/{1}/{2}", "Plugins", "x86", LinuxLibName)  // Standalone (build layout)
 #endif
                         };
                     break;
@@ -373,9 +410,12 @@ namespace OdinNative.Core.Platform
                             string.Format("{0}/{1}/{2}", AssetStorePath, "windows/x86_64", WindowsLibName), // Asset Store
                             string.Format("{0}/{1}/{2}", LibraryCache, "Plugins/windows/x86_64", WindowsLibName), // PackageCache
 #if UNITY_64
+                            string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins/windows", WindowsLibName),
+                            string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "windows/x86_64", WindowsLibName),
+                            string.Format("{0}/{1}/{2}", "Plugins", "windows/x86_64", WindowsLibName),  // Standalone
                             string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins", WindowsLibName),
                             string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "x86_64", WindowsLibName),
-                            string.Format("{0}/{1}/{2}", "Plugins", "x86_64", WindowsLibName),  // Standalone
+                            string.Format("{0}/{1}/{2}", "Plugins", "x86_64", WindowsLibName),  // Standalone (build layout)
 #endif
 #if ENABLE_VR
                             string.Format("{0}/{1}/{2}", PackagePath, "windows/aarch64", WindowsLibName), // PkgManager
@@ -392,8 +432,10 @@ namespace OdinNative.Core.Platform
                             string.Format("{0}/{1}/{2}", AssetStorePath, "windows/x86", WindowsLibName), // Asset Store
                             string.Format("{0}/{1}/{2}", LibraryCache, "Plugins/windows/x86", WindowsLibName) // PackageCache
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+                            ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins/windows", WindowsLibName)
+                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "windows/x86", WindowsLibName), string.Format("{0}/{1}/{2}", "Plugins", "windows/x86", WindowsLibName)  // Standalone
                             ,string.Format("{0}/{1}/{2}", UnityEngine.Application.dataPath, "Plugins", WindowsLibName)
-                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "x86", WindowsLibName), string.Format("{0}/{1}/{2}", "Plugins", "x86", WindowsLibName)  // Standalone
+                            ,string.Format("{0}/{1}/{2}/{3}", UnityEngine.Application.dataPath, "Plugins", "x86", WindowsLibName), string.Format("{0}/{1}/{2}", "Plugins", "x86", WindowsLibName)  // Standalone (build layout)
 #endif
                         };
                     break;

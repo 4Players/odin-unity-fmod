@@ -152,7 +152,14 @@ namespace FMODUnity
         public string TargetBankFolder = "";
 
         [SerializeField]
+#if FMOD_SERIALIZE_GUID_ONLY
+        public EventLinkage EventLinkage = EventLinkage.GUID;
+#else
         public EventLinkage EventLinkage = EventLinkage.Path;
+#endif
+
+        [SerializeField]
+        public bool SerializeGUIDsOnly;
 
         [SerializeField]
         public FMOD.DEBUG_FLAGS LoggingLevel = FMOD.DEBUG_FLAGS.WARNING;
@@ -682,8 +689,8 @@ namespace FMODUnity
                         platformToDestroy = newPlatform;
                     }
 
-                    RuntimeUtils.DebugLogWarningFormat("FMOD: Cleaning up duplicate platform: ID  = {0}, name = '{1}', type = {2}",
-                        platformToDestroy.Identifier, platformToDestroy.DisplayName, platformToDestroy.GetType().Name);
+                    RuntimeUtils.DebugLogWarning(string.Format("FMOD: Cleaning up duplicate platform: ID  = {0}, name = '{1}', type = {2}",
+                        platformToDestroy.Identifier, platformToDestroy.DisplayName, platformToDestroy.GetType().Name));
 
                     DestroyImmediate(platformToDestroy, true);
                 }
@@ -835,11 +842,13 @@ namespace FMODUnity
             Count,
         }
 
+        [Serializable]
         public class PlatformSettingBase
         {
             public Platform Platform;
         }
 
+        [Serializable]
         public class PlatformSetting<T> : PlatformSettingBase
         {
             public T Value;
